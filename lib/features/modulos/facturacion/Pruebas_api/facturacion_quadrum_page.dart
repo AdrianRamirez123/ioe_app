@@ -96,6 +96,12 @@ class _FacturacionPageState extends ConsumerState<FacturacionQuadrumPage> {
   static const double _dWAutRef = 140;
   static const double _dWTipoFact = 100;
   /// Columna de botones de Quadrum: ancho fijo, no se redimensiona.
+  /// El boton "REALIZAR FACTURA" de la vista de detalle timbra con
+  /// Facturify. Aqui se timbra con Quadrum desde el rayo de cada renglon,
+  /// y tener los dos caminos abiertos invita a facturar dos veces la misma
+  /// venta. Se deja el codigo y se apaga con esta bandera.
+  static const bool _mostrarBotonFacturify = false;
+
   static const double _wAcciones = 132;
   static const double _dWEstatus = 100;
   static const double _dColumnGap = 8;
@@ -2457,10 +2463,22 @@ class _FacturacionPageState extends ConsumerState<FacturacionQuadrumPage> {
       'cfdi_uuid',
     ]).trim();
     final yaTimbrado = uuidFila.isNotEmpty && uuidFila != '-';
-    final mensajeTimbrar = yaTimbrado
+    // Si el CFDI quedo cancelado, el folio vuelve a estar disponible: se
+    // le puede emitir uno nuevo, con su propia reemision de serie y folio.
+    // Cancelado, o con la cancelacion en tramite: en ambos casos el folio
+    // volvio a estar disponible y se le puede emitir un CFDI nuevo.
+    final cfdiCancelado =
+        _pickText(row, const ['CFDI_STATUS']).trim().toUpperCase() ==
+                'CANCELADO' ||
+        _pickText(row, const ['CFDI_CANCEL_STATUS']).trim().replaceAll(
+              '-',
+              '',
+            ).isNotEmpty;
+    final puedeTimbrarse = !yaTimbrado || cfdiCancelado;
+    final mensajeTimbrar = !puedeTimbrarse
         ? 'Este folio ya esta timbrado'
         : tieneCsd
-        ? 'Timbrar con Quadrum'
+        ? (cfdiCancelado ? 'Volver a facturar con Quadrum' : 'Timbrar con Quadrum')
         : 'Sin CSD cargado para $rfcDeLaFila: cargalo en Certificados';
     final canSelectForUnificacion = _isRowEligibleForUnificacion(row);
     final isSelectedForUnificacion =
@@ -2478,7 +2496,19 @@ class _FacturacionPageState extends ConsumerState<FacturacionQuadrumPage> {
       'NOMBRE',
       'NOMBRE_CLIENTE',
     ]);
-    final fcn = _formatDate(_pickValue(row, const ['FCN', 'fcn']));
+    // Si el folio volvio a pendiente despues de cancelarse, FCNF trae la
+    // fecha de ese movimiento y es la que hay que mostrar: con la de la
+    // venta quedaria enterrado entre folios viejos. En cualquier otro caso
+    // la columna sigue mostrando FCN, como siempre.
+    final esPendiente =
+        _pickText(row, const ['ESTATUS', 'estatus']).toUpperCase() ==
+            'PENDIENTE';
+    final fechaDeMovimiento = _pickValue(row, const ['FCNF', 'fcnf']);
+    final fcn = _formatDate(
+      esPendiente && cfdiCancelado && fechaDeMovimiento != null
+          ? fechaDeMovimiento
+          : _pickValue(row, const ['FCN', 'fcn']),
+    );
     final impt = _formatMoney(_pickValue(row, const ['IMPT', 'impt']));
     final fPago = _pickText(row, const [
       'FORMAPAGO',
@@ -2579,7 +2609,7 @@ class _FacturacionPageState extends ConsumerState<FacturacionQuadrumPage> {
                         height: 34,
                       ),
                       icon: const Icon(Icons.bolt, size: 18),
-                      onPressed: canSelect && tieneCsd && !yaTimbrado
+                      onPressed: canSelect && tieneCsd && puedeTimbrarse
                           ? () => _timbrarConQuadrum(ref, idFol)
                           : null,
                     ),
@@ -3577,6 +3607,7 @@ class _FacturacionPageState extends ConsumerState<FacturacionQuadrumPage> {
                                   : () => Navigator.of(dialogContext).pop(),
                               child: const Text('CERRAR'),
                             ),
+                            if (_mostrarBotonFacturify)
                             FilledButton(
                               onPressed: (!canFacturar || facturando)
                                   ? null
@@ -4609,13 +4640,26 @@ class _FacturacionPageState extends ConsumerState<FacturacionQuadrumPage> {
     return 'No se pudo emitir factura.';
   }
 
+  /// Fecha por la que se ordena un renglon: su ultimo movimiento.
+  ///
+  /// Es la misma regla que usa la consulta del servidor. Importa para los
+  /// folios que vuelven a pendiente tras cancelarse: conservan el FCN de la
+  /// venta, y ordenar por el los dejaria enterrados entre los mas viejos.
+  DateTime? _fechaDeOrden(Map<String, dynamic> row) {
+    final fcnf = _parseRowDateTime(_pickValue(row, const ['FCNF', 'fcnf']));
+    final fcn = _parseRowDateTime(_pickValue(row, const ['FCN', 'fcn']));
+    if (fcnf == null) return fcn;
+    if (fcn == null) return fcnf;
+    return fcnf.isAfter(fcn) ? fcnf : fcn;
+  }
+
   List<Map<String, dynamic>> _sortRowsByFcnDesc(
     List<Map<String, dynamic>> rows,
   ) {
     final sorted = [...rows];
     sorted.sort((a, b) {
-      final aDate = _parseRowDateTime(_pickValue(a, const ['FCN', 'fcn']));
-      final bDate = _parseRowDateTime(_pickValue(b, const ['FCN', 'fcn']));
+      final aDate = _fechaDeOrden(a);
+      final bDate = _fechaDeOrden(b);
 
       if (aDate != null && bDate != null) {
         final cmp = bDate.compareTo(aDate);

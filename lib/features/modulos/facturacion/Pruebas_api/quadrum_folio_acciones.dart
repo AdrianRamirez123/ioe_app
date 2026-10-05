@@ -75,6 +75,11 @@ class _AccionesQuadrumDialogState
   late final bool _estaCancelada =
       _cfdiStatus.toUpperCase() == 'CANCELADO' || _cancelStatus.isNotEmpty;
 
+  /// Cancelado, o con la cancelacion en tramite: el SAT ya acepto la
+  /// solicitud, asi que el folio quedo libre para volver a facturarse.
+  late final bool _puedeRefacturar =
+      _cfdiStatus.toUpperCase() == 'CANCELADO' || _cancelStatus.isNotEmpty;
+
   late final TextEditingController _totalCtrl = TextEditingController(
     text: _texto(widget.fila, ['IMPT', 'TOTAL']),
   );
@@ -167,7 +172,7 @@ class _AccionesQuadrumDialogState
     final yaTimbrado = _uuid.isNotEmpty;
     final esDeFacturify = _pac.isNotEmpty && _pac.toUpperCase() != 'QUADRUM';
     final puedeTimbrar =
-        tieneCsd && !yaTimbrado && !esDeFacturify && enProduccion && !_ocupado;
+        tieneCsd && (!yaTimbrado || _puedeRefacturar) && !esDeFacturify && enProduccion && !_ocupado;
 
     return AlertDialog(
       title: Text('Quadrum · folio $_idFol'),
