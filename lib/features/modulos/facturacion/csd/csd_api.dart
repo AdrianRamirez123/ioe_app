@@ -32,6 +32,8 @@ class CsdApi {
     required String password,
     required String regimenFiscal,
     required String codigoPostal,
+    String? quadrumUsuario,
+    String? quadrumPassword,
   }) async {
     final res = await _dio.post<dynamic>(
       '/cfdi/csd',
@@ -41,6 +43,12 @@ class CsdApi {
         'password': password,
         'regimenFiscal': regimenFiscal,
         'codigoPostal': codigoPostal,
+        // Solo se mandan si se capturaron: en blanco, la API conserva
+        // la cuenta que ya tuviera ese RFC.
+        if (quadrumUsuario != null && quadrumUsuario.trim().isNotEmpty)
+          'quadrumUsuario': quadrumUsuario.trim(),
+        if (quadrumPassword != null && quadrumPassword.isNotEmpty)
+          'quadrumPassword': quadrumPassword,
       },
     );
     final data = res.data;

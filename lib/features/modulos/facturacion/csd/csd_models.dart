@@ -14,6 +14,7 @@ class CsdModel {
     this.nombre,
     this.fechaAlta,
     this.usuarioAlta,
+    this.quadrumUsuario,
   });
 
   final String rfc;
@@ -27,6 +28,9 @@ class CsdModel {
   final DateTime? fechaAlta;
   final String? usuarioAlta;
 
+  /// Cuenta de Quadrum con la que timbra este RFC. Null = la del .env.
+  final String? quadrumUsuario;
+
   factory CsdModel.fromJson(Map<String, dynamic> json) {
     return CsdModel(
       rfc: '${json['rfc'] ?? ''}',
@@ -39,6 +43,7 @@ class CsdModel {
       activo: json['activo'] == true,
       fechaAlta: _fecha(json['fechaAlta']),
       usuarioAlta: json['usuarioAlta'] as String?,
+      quadrumUsuario: json['quadrumUsuario'] as String?,
     );
   }
 

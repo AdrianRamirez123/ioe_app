@@ -31,6 +31,12 @@ class _CsdPageState extends ConsumerState<CsdPage> {
   final _passwordCtrl = TextEditingController();
   final _cpCtrl = TextEditingController();
 
+  /// Cuenta del PAC de esta razon social. Opcional: sin ella se usa la
+  /// del .env, que es como trabajaba antes de manejar varios RFC.
+  final _pacUsuarioCtrl = TextEditingController();
+  final _pacPasswordCtrl = TextEditingController();
+  bool _verPacPassword = false;
+
   String _regimen = '612';
   bool _verPassword = false;
   bool _guardando = false;
@@ -42,6 +48,8 @@ class _CsdPageState extends ConsumerState<CsdPage> {
   void dispose() {
     _passwordCtrl.dispose();
     _cpCtrl.dispose();
+    _pacUsuarioCtrl.dispose();
+    _pacPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -82,6 +90,8 @@ class _CsdPageState extends ConsumerState<CsdPage> {
             password: _passwordCtrl.text,
             regimenFiscal: _regimen,
             codigoPostal: _cpCtrl.text.trim(),
+            quadrumUsuario: _pacUsuarioCtrl.text,
+            quadrumPassword: _pacPasswordCtrl.text,
           );
 
       if (!mounted) return;
@@ -94,6 +104,8 @@ class _CsdPageState extends ConsumerState<CsdPage> {
         _key = null;
         _passwordCtrl.clear();
         _cpCtrl.clear();
+        _pacUsuarioCtrl.clear();
+        _pacPasswordCtrl.clear();
       });
       ref.invalidate(csdListProvider);
     } catch (error) {
@@ -221,6 +233,52 @@ class _CsdPageState extends ConsumerState<CsdPage> {
                       validator: (v) => (v == null || v.isEmpty)
                           ? 'Captura la contraseña'
                           : null,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 240,
+                    child: TextFormField(
+                      controller: _pacUsuarioCtrl,
+                      enabled: !_guardando,
+                      decoration: const InputDecoration(
+                        labelText: 'Usuario de Quadrum',
+                        hintText: 'Opcional',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 240,
+                    child: TextFormField(
+                      controller: _pacPasswordCtrl,
+                      obscureText: !_verPacPassword,
+                      enabled: !_guardando,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña de Quadrum',
+                        hintText: 'Opcional',
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _verPacPassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () => setState(
+                            () => _verPacPassword = !_verPacPassword,
+                          ),
+                        ),
+                      ),
+                      validator: (v) {
+                        // O las dos o ninguna: un usuario sin contrasena no
+                        // sirve para timbrar.
+                        final usuario = _pacUsuarioCtrl.text.trim();
+                        if (usuario.isNotEmpty && (v == null || v.isEmpty)) {
+                          return 'Falta la contraseña de esa cuenta';
+                        }
+                        return null;
+                      },
                     ),
                   ),
                   SizedBox(
@@ -386,6 +444,13 @@ class _CsdList extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
+                  width: 150,
+                  child: Text(
+                    'CUENTA PAC',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                SizedBox(
                   width: 110,
                   child: Text(
                     'VENCE',
@@ -423,6 +488,23 @@ class _CsdList extends StatelessWidget {
                       SizedBox(width: 190, child: Text(csd.noCertificado)),
                       SizedBox(width: 80, child: Text(csd.regimenFiscal)),
                       SizedBox(width: 70, child: Text(csd.codigoPostal)),
+                      SizedBox(
+                        width: 150,
+                        child: Text(
+                          csd.quadrumUsuario?.trim().isNotEmpty == true
+                              ? csd.quadrumUsuario!
+                              : 'la del .env',
+                          style: TextStyle(
+                            fontStyle: csd.quadrumUsuario == null
+                                ? FontStyle.italic
+                                : FontStyle.normal,
+                            color: csd.quadrumUsuario == null
+                                ? Colors.grey.shade600
+                                : null,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       SizedBox(width: 110, child: Text(_fecha(csd.validoHasta))),
                       SizedBox(width: 130, child: _Estado(csd: csd)),
                     ],
